@@ -1,0 +1,108 @@
+{
+  "orders": [],
+  "stocks": {
+    "tshirt": {
+      "grey-black": {
+        "S": 10,
+        "M": 15,
+        "L": 8,
+        "XL": 5
+      },
+      "white-black": {
+        "S": 12,
+        "M": 18,
+        "L": 7,
+        "XL": 3
+      },
+      "white-red": {
+        "S": 0,
+        "M": 0,
+        "L": 0,
+        "XL": 0
+      }
+    },
+    "jort": {
+      "S": 5,
+      "M": 10,
+      "L": 6,
+      "XL": 4
+    }
+  },
+  "products": [
+    {
+      "id": "prod1",
+      "name": "Classic T-shirt",
+      "type": "tshirt",
+      "price": 120,
+      "images": [
+        {
+          "name": "Front",
+          "url": "img/front black.jpg"
+        },
+        {
+          "name": "Back",
+          "url": "img/back grey-black.jpg"
+        },
+        {
+          "name": "Front",
+          "url": "img/front black.jpg"
+        },
+        {
+          "name": "Back",
+          "url": "img/back black-white.jpg"
+        }
+      ],
+      "styles": [
+        { "value": "grey-black", "label": "Grey on Black" },
+        { "value": "white-black", "label": "White on Black" },
+        { "value": "white-red", "label": "White on Red" }
+      ],
+      "stock": {
+        "grey-black": {
+          "S": 10,
+          "M": 15,
+          "L": 8,
+          "XL": 5
+        },
+        "white-black": {
+          "S": 12,
+          "M": 18,
+          "L": 7,
+          "XL": 3
+        },
+        "white-red": {
+          "S": 0,
+          "M": 0,
+          "L": 0,
+          "XL": 0
+        }
+      }
+    },
+    {
+      "id": "prod2",
+      "name": "Designer Jort",
+      "type": "jort",
+      "price": 70,
+      "images": [
+        {
+          "name": "Front View",
+          "url": "img/jort-front.jpg"
+        },
+        {
+          "name": "Back View",
+          "url": "img/jort-back.jpg"
+        }
+      ],
+      "stock": {
+        "S": 5,
+        "M": 10,
+        "L": 6,
+        "XL": 4
+      }
+    }
+  ],
+  "admin": {
+    "username": "admin",
+    "password": "$2b$10$QbQ6w1zQwQwQwQwQwQwQwOQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw"
+  }
+}
