@@ -1,31 +1,15 @@
 const express = require('express');
 const fs = require('fs');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DB_FILE = __dirname + '/db.json';
-const AUDIT_LOG_FILE = __dirname + '/audit.log';
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
 const JWT_SECRET = process.env.JWT_SECRET || 'vision_secret_2025';
-const SALT_ROUNDS = 10;
 
 app.use(cors());
 app.use(express.json());
-
-// --- Rate Limiting ---
-const loginLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 10, // limit each IP to 10 login requests per windowMs
-    message: { error: 'Too many login attempts. Please try again later.' }
-});
-const adminLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 60, // limit each IP to 60 admin actions per windowMs
-    message: { error: 'Too many admin actions. Please slow down.' }
-});
 
 // Helper to read/write DB
 function readDB() {
@@ -41,17 +25,6 @@ function readDB() {
 }
 function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-
-// --- Audit Logging Helper ---
-function logAudit(action, username, details = {}) {
-    const entry = {
-        time: new Date().toISOString(),
-        action,
-        username,
-        details
-    };
-    fs.appendFileSync(AUDIT_LOG_FILE, JSON.stringify(entry) + '\n');
 }
 
 // Get stocks
@@ -175,38 +148,30 @@ function requireAdmin(req, res, next) {
 }
 
 // --- Admin Login ---
-app.post('/api/admin/login', loginLimiter, async (req, res) => {
+app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     const db = readDB();
-    if (db.admin && username === db.admin.username) {
-        // Compare hash
-        const match = await bcrypt.compare(password, db.admin.password);
-        if (match) {
-            logAudit('login', username, { success: true });
-            const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '2h' });
-            return res.json({ success: true, token });
-        }
+    if (db.admin && username === db.admin.username && password === db.admin.password) {
+        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '2h' });
+        return res.json({ success: true, token });
     }
-    logAudit('login', username, { success: false });
     res.status(401).json({ success: false, error: 'Invalid credentials' });
 });
 
 // --- Change Admin Credentials ---
-app.post('/api/admin/change-credentials', requireAdmin, adminLimiter, async (req, res) => {
+app.post('/api/admin/change-credentials', requireAdmin, (req, res) => {
     const { username, password } = req.body;
     if (!username || !password || username.length < 3 || password.length < 4) {
         return res.status(400).json({ success: false, error: 'Invalid username or password' });
     }
     const db = readDB();
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    db.admin = { username, password: hash };
+    db.admin = { username, password };
     writeDB(db);
-    logAudit('change-credentials', username, { success: true });
     res.json({ success: true });
 });
 
 // --- Protect admin endpoints ---
-app.post('/api/products', requireAdmin, adminLimiter, (req, res) => {
+app.post('/api/products', requireAdmin, (req, res) => {
     const db = readDB();
     const product = req.body;
 
@@ -222,7 +187,6 @@ app.post('/api/products', requireAdmin, adminLimiter, (req, res) => {
         product.id = crypto.randomBytes(4).toString('hex');
         db.products.push(product);
         writeDB(db);
-        logAudit('save-product', req.body?.username || 'admin', { product: req.body });
         return res.json({ success: true, id: product.id });
     } else {
         // Update existing product
@@ -230,56 +194,38 @@ app.post('/api/products', requireAdmin, adminLimiter, (req, res) => {
         if (index !== -1) {
             db.products[index] = product;
             writeDB(db);
-            logAudit('save-product', req.body?.username || 'admin', { product: req.body });
             return res.json({ success: true, id: product.id });
         } else {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
     }
 });
-app.delete('/api/products/:id', requireAdmin, adminLimiter, (req, res) => {
+app.delete('/api/products/:id', requireAdmin, (req, res) => {
     const db = readDB();
     const initialLength = (db.products || []).length;
     db.products = (db.products || []).filter(p => p.id !== req.params.id);
     writeDB(db);
-    logAudit('delete-product', 'admin', { productId: req.params.id });
     if (db.products.length < initialLength) {
         res.json({ success: true });
     } else {
         res.status(404).json({ success: false, error: 'Product not found' });
     }
 });
-app.post('/api/stocks', requireAdmin, adminLimiter, (req, res) => {
+app.post('/api/stocks', requireAdmin, (req, res) => {
     const db = readDB();
     db.stocks = req.body;
     writeDB(db);
-    logAudit('set-stocks', 'admin', { stocks: req.body });
     res.json({ success: true });
 });
-app.delete('/api/orders/:index', requireAdmin, adminLimiter, (req, res) => {
+app.delete('/api/orders/:index', requireAdmin, (req, res) => {
     const db = readDB();
     const idx = parseInt(req.params.index, 10);
     if (idx >= 0 && idx < db.orders.length) {
         db.orders.splice(idx, 1);
         writeDB(db);
-        logAudit('delete-order', 'admin', { orderIndex: req.params.index });
         res.json({ success: true });
     } else {
         res.status(404).json({ error: 'Order not found' });
-    }
-});
-
-// --- View Audit Logs (admin only) ---
-app.get('/api/admin/audit-logs', requireAdmin, adminLimiter, (req, res) => {
-    try {
-        if (!fs.existsSync(AUDIT_LOG_FILE)) return res.json([]);
-        const lines = fs.readFileSync(AUDIT_LOG_FILE, 'utf8').trim().split('\n');
-        const logs = lines.map(line => {
-            try { return JSON.parse(line); } catch { return null; }
-        }).filter(Boolean);
-        res.json(logs.reverse().slice(0, 100)); // latest 100 logs, newest first
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to read audit logs.' });
     }
 });
 
